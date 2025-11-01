@@ -18,6 +18,11 @@ void clearPreviousLine()
     std::cout << "\x1b[1A\x1b[2K";
 }
 
+void debugMode(const std::string& name, const std::string& str = "No pro or con")
+{
+    if (toLower(name) == "debug")
+        std::cout << "//" << str << "//\n";
+}
 
 std::string promptExact(const std::string &question, const std::vector<std::string> &allowed)
 {
@@ -71,15 +76,82 @@ int promptInt(const std::string &question, int minVal = std::numeric_limits<int>
     }
 }
 
-void debugMode(const std::string &name, const std::string &str = "No pro or con")
+double promptDouble(const std::string& question, double minVal = std::numeric_limits<double>::min(), double maxVal = std::numeric_limits<double>::max())
 {
-    if (toLower(name) == "debug")
-        std::cout << "//" << str << "//\n";
+    while (true)
+    {
+        std::cout << question;
+        std::string line;
+        std::getline(std::cin, line);
+        try {
+            double val = std::stod(line);
+            if (val < minVal || val > maxVal) {
+                clearPreviousLine();
+                continue;
+            }
+            return val;
+        }
+        catch (...) {
+            clearPreviousLine();
+            continue;
+        }
+    }
+}
+
+void promptValidatedMasses(double& dryMass, double& fuelMass, double& payloadMass)
+{
+    const int DRY_MIN = 500, DRY_MAX = 200000;
+    const int FUEL_MIN = 2000, FUEL_MAX = 3000000;
+    const int PAYLOAD_MIN = 50, PAYLOAD_MAX = 150000;
+
+    while (true)
+    {
+        std::cout << '\n';
+        dryMass = static_cast<double>(promptInt("Dry mass (empty rocket) in kg (eg. 22000): ", DRY_MIN, DRY_MAX));
+        fuelMass = static_cast<double>(promptInt("Total fuel mass in kg (eg. 395000): ", FUEL_MIN, FUEL_MAX));
+        payloadMass = static_cast<double>(promptInt("Payload mass in kg (eg. 22800): ", PAYLOAD_MIN, PAYLOAD_MAX));
+
+        double totalMass = dryMass + fuelMass + payloadMass;
+        double fuelRatio = fuelMass / totalMass;
+        double payloadRatio = payloadMass / totalMass;
+
+        bool ok = true;
+        bool fuelLow = false, fuelHigh = false, payloadHigh = false;
+        if (fuelRatio < 0.70) { ok = false; fuelLow = true; }
+        if (fuelRatio > 0.90) { ok = false; fuelHigh = true; }
+        if (payloadRatio > 0.06) { ok = false; payloadHigh = true; }
+
+        if (ok)
+            break;
+        else
+        {
+            int errorCount = 0;
+            if (fuelLow || fuelHigh) ++errorCount;
+            if (payloadHigh) ++errorCount;
+
+            std::cout << "\n";
+            if (fuelLow)
+                std::cout << "[!] Fuel ratio too LOW (" << (fuelRatio * 100.0) << "%). Needs 70%-90% of total.\n";
+            else if (fuelHigh)
+                std::cout << "[!] Fuel ratio too HIGH (" << (fuelRatio * 100.0) << "%). Needs 70%-90% of total.\n";
+            if (payloadHigh)
+                std::cout << "[!] Payload ratio too HIGH (" << (payloadRatio * 100.0) << "%). Must be <= 6% of total.\n";
+            
+            std::cout << "Press Enter to try again...";
+            
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            
+            int clearCount = errorCount + 6;
+            for (int i = 0; i < clearCount; ++i) {
+                clearPreviousLine();
+            }
+        }
+    }
 }
 
 int main()
 {
-    std::cout << "\n\t\t\t\t\t*-*-*-*-* ASTRA SIMULATOR *-*-*-*-*\n";
+    std::cout << "\n\t\t\t\t\t*=*=*=*=* ASTRA SIMULATOR *=*=*=*=*\n";
     
     // NAME
     std::string rocketName;
@@ -106,19 +178,47 @@ int main()
     int stageCount = promptInt("Enter your stage count (1-5): ", 1, 5);
 
     // STAGE SEPARATION
-    std::string stageSepChoice = promptExact("Manual or automatic stage separation? (m/a): ", { "m", "a" });
-    bool isAutomaticSeparation = (toLower(stageSepChoice) == "a");
+    bool isAutomaticSeparation;
+    if (stageCount > 1)
+    {
+        std::string stageSepChoice = promptExact("Manual or automatic stage separation? (m/a): ", { "m", "a" });
+        isAutomaticSeparation = (toLower(stageSepChoice) == "a");
+    }
+    
+
+    std::cout << "\n--- PHYSICAL PROPERTIES ---\n";
+
+    // HEIGHT
+    double height = promptInt("Total rocket height in meters (eg. 70): ", 1, 120);
+
+    // DIAMETER
+    double diameter = promptDouble("Rocket diameter in meters (eg. 3.7): ", 1.0, 9.0);
+
+    double dryMass = 0.0, fuelMass = 0.0, payloadMass = 0.0;
+    promptValidatedMasses(dryMass, fuelMass, payloadMass);
 
     
-    std::cout << "\n\nYour Rocket's details:\n";
-    std::cout << rocketName << "\n";
+    std::cout << "\n\n--- " << rocketName << "'s details ---\n";
     std::cout << "Mission: " << mission << "\n";
     std::cout << "Launch site: " << launchSite << "\n";
     std::cout << "Material: " << material << "\n";
     std::cout << "Stages: " << stageCount << "\n";
-    std::cout << "Separation: " << (isAutomaticSeparation ? "automatic" : "manual") << "\n\n";
+    if (stageCount > 1)
+        std::cout << "Separation: " << (isAutomaticSeparation ? "automatic" : "manual") << "\n";
     
-    std::cout << "\n*-*-*-*-* End of summary *-*-*-*-*\n";
+    std::cout << "\nHeight: " << height << "\n";
+    std::cout << "Diameter: " << diameter << "\n";
+    std::cout << "Dry mass: " << dryMass << "\n";
+    std::cout << "Fuel mass: " << fuelMass << "\n";
+    std::cout << "Payload mass: " << payloadMass << "\n";
+    
+    double totalMass = dryMass + fuelMass + payloadMass;
+    std::cout << "Total mass: " << totalMass << " kg\n";
+    std::cout << "Fuel ratio: " << (fuelMass / totalMass) * 100 << "%\n";
+    std::cout << "Payload ratio: " << (payloadMass / totalMass) * 100 << "%\n";
+
+    
+    std::cout << "\n*=*=*=*=* End of Summary *=*=*=*=*\n";
 
     return 0;
 }

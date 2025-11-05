@@ -6,6 +6,12 @@
 //#include <cmath>
 //#include <limits>
 
+const double PI = 3.141592653589793;
+const double g0 = 9.80665;
+const double AIR_DENSITY = 1.225; // kg/m^3 at sea level
+const double ESCAPE_VELOCITY = 11186;
+const double SOLID_FUEL_DENSITY = 1.675; // typically 1.5 - 1.85 g/mL
+
 std::string toLower(const std::string& s)
 {
     std::string out = s;
@@ -197,6 +203,8 @@ int main()
     double dryMass = 0.0, fuelMass = 0.0, payloadMass = 0.0;
     promptValidatedMasses(dryMass, fuelMass, payloadMass);
 
+    // PICK AN ENGINE (eg. Merlin or etc)
+
     
     std::cout << "\n\n--- " << rocketName << "'s details ---\n";
     std::cout << "Mission: " << mission << "\n";
@@ -217,8 +225,25 @@ int main()
     std::cout << "Fuel ratio: " << (fuelMass / totalMass) * 100 << "%\n";
     std::cout << "Payload ratio: " << (payloadMass / totalMass) * 100 << "%\n";
 
-    
+    double radius = diameter / 2;
+    double crossSection = PI * pow(radius, 2);
+    double volume = crossSection * height;
+    // double massFlowRate = SOLID_FUEL_DENSITY * nozzle throat * velocity
+    // double Isp = F / (massFlowRate * g0);
+    // double Ve = Isp * g0;
+    // double thrust;
+
     std::cout << "\n*=*=*=*=* End of Summary *=*=*=*=*\n";
+
+    
+    
+    // S   S   S     I   I   I     M   M   M     U   U   U     L   L   L     A   A   A     T   T   T     I   I   I     O   O   O     N   N   N
+
+
+
+    // double velocity = 0.0;
+    // double deltaV = Ve * ln(totalMass/dryMass);
+    // double acceleration = 0.0;
 
     return 0;
 }

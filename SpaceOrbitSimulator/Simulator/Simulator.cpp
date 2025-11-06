@@ -2,8 +2,10 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 //#include <cctype>
-//#include <cmath>
+#include <cmath>
 //#include <limits>
 
 const double PI = 3.141592653589793;
@@ -11,6 +13,15 @@ const double g0 = 9.80665;
 const double AIR_DENSITY = 1.225; // kg/m^3 at sea level
 const double ESCAPE_VELOCITY = 11186;
 const double SOLID_FUEL_DENSITY = 1.675; // typically 1.5 - 1.85 g/mL
+
+struct EngineSpec {
+    std::string name;
+    double thrustSea; // thrust in Newtons
+    double thrustVac;
+    double ispSea; // specific impulse in seconds
+    double ispVac;
+    double throatArea; // m^2
+};
 
 std::string toLower(const std::string& s)
 {
@@ -22,6 +33,10 @@ std::string toLower(const std::string& s)
 void clearPreviousLine()
 {
     std::cout << "\x1b[1A\x1b[2K";
+}
+
+void clearScreen() {
+    std::cout << "\x1b[2J\x1b[H";
 }
 
 void debugMode(const std::string& name, const std::string& str = "No pro or con")
@@ -157,93 +172,132 @@ void promptValidatedMasses(double& dryMass, double& fuelMass, double& payloadMas
 
 int main()
 {
-    std::cout << "\n\t\t\t\t\t*=*=*=*=* ASTRA SIMULATOR *=*=*=*=*\n";
-    
-    // NAME
-    std::string rocketName;
-    std::cout << "Name your Rocket (eg. Apollo11): ";
-    std::getline(std::cin, rocketName);
-    
-    // MISSION
-    std::string mission;
-    debugMode(rocketName);
-    std::cout << "Name your Mission (eg. cargo, satellite, orbit): ";
-    getline(std::cin, mission);
-    
-    // LAUNCH SITE
-    debugMode(rocketName, "1 = +% storm, 2 = +% fuel useage");
-    std::string launchSiteChoice = promptExact("Pick a Launch site (1 for Florida, 2 for Russia): ", {"1", "2"});
-    std::string launchSite = (toLower(launchSiteChoice) == "1") ? "Florida" : "Russia";
-
-    // MATERIAL
-    debugMode(rocketName, "2 = -% failure");
-    std::string materialChoice = promptExact("Pick your rocket's material (1 for stainless steel, 2 for titanium): ", { "1", "2" });
-    std::string material = (toLower(materialChoice) == "1") ? "stainless steel" : "titanium";
-
-    // STAGE COUNT
-    int stageCount = promptInt("Enter your stage count (1-5): ", 1, 5);
-
-    // STAGE SEPARATION
-    bool isAutomaticSeparation;
-    if (stageCount > 1)
+    while (true)
     {
-        std::string stageSepChoice = promptExact("Manual or automatic stage separation? (m/a): ", { "m", "a" });
-        isAutomaticSeparation = (toLower(stageSepChoice) == "a");
+        clearScreen();
+        std::cout << "\n\t\t\t\t\t*=*=*=*=* ASTRA SIMULATOR *=*=*=*=*\n";
+
+        // NAME
+        std::string rocketName;
+        std::cout << "Name your Rocket (eg. Apollo11): ";
+        std::getline(std::cin, rocketName);
+
+        // MISSION
+        std::string mission;
+        debugMode(rocketName);
+        std::cout << "Name your Mission (eg. cargo, satellite, orbit): ";
+        getline(std::cin, mission);
+
+        // LAUNCH SITE
+        debugMode(rocketName, "1 = +% storm, 2 = +% fuel useage");
+        std::string launchSiteChoice = promptExact("Pick a Launch site (1 for Florida, 2 for Russia): ", { "1", "2" });
+        std::string launchSite = (toLower(launchSiteChoice) == "1") ? "Florida" : "Russia";
+
+        // MATERIAL
+        debugMode(rocketName, "2 = -% failure");
+        std::string materialChoice = promptExact("Pick your rocket's material (1 for stainless steel, 2 for titanium): ", { "1", "2" });
+        std::string material = (toLower(materialChoice) == "1") ? "stainless steel" : "titanium";
+
+        // STAGE COUNT
+        int stageCount = promptInt("Enter your stage count (1-5): ", 1, 5);
+
+        // STAGE SEPARATION
+        bool isAutomaticSeparation;
+        if (stageCount > 1)
+        {
+            std::string stageSepChoice = promptExact("Manual or automatic stage separation? (m/a): ", { "m", "a" });
+            isAutomaticSeparation = (toLower(stageSepChoice) == "a");
+        }
+
+
+        std::cout << "\n--- PHYSICAL PROPERTIES ---\n";
+
+        // HEIGHT
+        double height = promptInt("Total rocket height in meters (eg. 70): ", 1, 120);
+
+        // DIAMETER
+        double diameter = promptDouble("Rocket diameter in meters (eg. 3.7): ", 1.0, 9.0);
+
+        double dryMass = 0.0, fuelMass = 0.0, payloadMass = 0.0;
+        promptValidatedMasses(dryMass, fuelMass, payloadMass);
+
+        // ENGINE
+        std::vector<EngineSpec> engines = {
+            { "F1 (Apollo, Saturn V)", 6770000.0, 7770000.0, 263.0, 304.0, 0.67 },
+            { "Merlin (SpaceX, Flacon9)", 845000.0, 981000, 282.0, 311.0, 0.042 },
+            { "RD-191 (Russian, Angara)", 1920000, 2090000, 310, 337, 0.046 }
+        };
+
+        std::cout << "\nAvailable engines:\n";
+        for (size_t i = 0; i < engines.size(); ++i) {
+            std::cout << " " << (i + 1) << ") " << engines[i].name
+                << " - Thrust at Sea level: " << engines[i].thrustSea / 1e3 << " kN"
+                << ", Thrust in Vacuum: " << engines[i].thrustVac / 1e3 << " kN"
+                << ", Isp at Sea level: " << engines[i].ispSea << " s"
+                << ", Isp in Vacuum: " << engines[i].ispVac << " s"
+                << ", Throat area: " << engines[i].throatArea << " m^2\n";
+        }
+
+        int choice = promptInt("\nChoose engine (1-3): ", 1, 3);
+        EngineSpec engine = engines[choice - 1];
+
+
+        // OUTPUT
+        std::cout << "\n\n--- " << rocketName << "'s details ---\n";
+        std::cout << "Mission: " << mission << "\n";
+        std::cout << "Launch site: " << launchSite << "\n";
+        std::cout << "Material: " << material << "\n";
+        std::cout << "Stages: " << stageCount << "\n";
+        if (stageCount > 1)
+            std::cout << "Separation: " << (isAutomaticSeparation ? "automatic" : "manual") << "\n";
+
+        std::cout << "\n--- Physical Properties ---\n";
+        std::cout << "Height: " << height << "\n";
+        std::cout << "Diameter: " << diameter << "\n";
+        std::cout << "Dry mass: " << dryMass << "\n";
+        std::cout << "Fuel mass: " << fuelMass << "\n";
+        std::cout << "Payload mass: " << payloadMass << "\n";
+
+        double totalMass = dryMass + fuelMass + payloadMass;
+        std::cout << "Total mass: " << totalMass << " kg\n";
+        std::cout << "Fuel ratio: " << (fuelMass / totalMass) * 100 << "%\n";
+        std::cout << "Payload ratio: " << (payloadMass / totalMass) * 100 << "%\n";
+        double radius = diameter / 2;
+        double crossSection = PI * radius * radius;
+        double volume = crossSection * height;
+
+        std::cout << "\n--- Engine Performance ---\n";
+        double VeSea = engine.ispSea * g0;
+        std::cout << "Effective exhaust velocity (sea): " << VeSea << " m/s\n";
+        double VeVac = engine.ispVac * g0;
+        std::cout << "Effective exhaust velocity (vac): " << VeVac << " m/s\n";
+        double mdotSea = engine.thrustSea / VeSea;
+        std::cout << "Mass flow rate (sea): " << mdotSea << " kg/s\n";
+        double mdotVac = engine.thrustVac / VeVac;
+        std::cout << "Mass flow rate (vac): " << mdotVac << " kg/s\n";
+        double TWR = engine.thrustSea / (totalMass * g0);
+        std::cout << "Thrust-to-weight ratio (TWR): " << TWR << "\n";
+        double burnTime = fuelMass / mdotSea;
+        std::cout << "Burn Time: " << burnTime << "\n";
+
+        std::cout << "\n*=*=*=*=* End of Summary *=*=*=*=*\n";
+
+
+        //   S   I   M   U   L   A   T   I   O   N
+
+
+        std::string proceed = promptExact("\nDo you wish to proceed to simulation? (Y/N): ", { "y", "n" });
+
+        if (proceed == "n" || proceed == "N") {
+            std::cout << "\nRestarting input...\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            continue;
+        }
+
+        // double velocity = 0.0;
+        // double deltaV = Ve * ln(totalMass/dryMass);
+        // double acceleration = 0.0;
+
+        return 0;
     }
-    
-
-    std::cout << "\n--- PHYSICAL PROPERTIES ---\n";
-
-    // HEIGHT
-    double height = promptInt("Total rocket height in meters (eg. 70): ", 1, 120);
-
-    // DIAMETER
-    double diameter = promptDouble("Rocket diameter in meters (eg. 3.7): ", 1.0, 9.0);
-
-    double dryMass = 0.0, fuelMass = 0.0, payloadMass = 0.0;
-    promptValidatedMasses(dryMass, fuelMass, payloadMass);
-
-    // PICK AN ENGINE (eg. Merlin or etc)
-
-    
-    std::cout << "\n\n--- " << rocketName << "'s details ---\n";
-    std::cout << "Mission: " << mission << "\n";
-    std::cout << "Launch site: " << launchSite << "\n";
-    std::cout << "Material: " << material << "\n";
-    std::cout << "Stages: " << stageCount << "\n";
-    if (stageCount > 1)
-        std::cout << "Separation: " << (isAutomaticSeparation ? "automatic" : "manual") << "\n";
-    
-    std::cout << "\nHeight: " << height << "\n";
-    std::cout << "Diameter: " << diameter << "\n";
-    std::cout << "Dry mass: " << dryMass << "\n";
-    std::cout << "Fuel mass: " << fuelMass << "\n";
-    std::cout << "Payload mass: " << payloadMass << "\n";
-    
-    double totalMass = dryMass + fuelMass + payloadMass;
-    std::cout << "Total mass: " << totalMass << " kg\n";
-    std::cout << "Fuel ratio: " << (fuelMass / totalMass) * 100 << "%\n";
-    std::cout << "Payload ratio: " << (payloadMass / totalMass) * 100 << "%\n";
-
-    double radius = diameter / 2;
-    double crossSection = PI * pow(radius, 2);
-    double volume = crossSection * height;
-    // double massFlowRate = SOLID_FUEL_DENSITY * nozzle throat * velocity
-    // double Isp = F / (massFlowRate * g0);
-    // double Ve = Isp * g0;
-    // double thrust;
-
-    std::cout << "\n*=*=*=*=* End of Summary *=*=*=*=*\n";
-
-    
-    
-    // S   S   S     I   I   I     M   M   M     U   U   U     L   L   L     A   A   A     T   T   T     I   I   I     O   O   O     N   N   N
-
-
-
-    // double velocity = 0.0;
-    // double deltaV = Ve * ln(totalMass/dryMass);
-    // double acceleration = 0.0;
-
-    return 0;
 }
